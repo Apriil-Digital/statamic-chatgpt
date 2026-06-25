@@ -1,115 +1,101 @@
 <template>
-    <div class="addon-container">
-        <button
-            class="bard-toolbar-button"
-            v-html="button.html"
-            v-tooltip="button.text"
-            @click="toggleDropdown"
-        ></button>
-        <div class="dropdown-container" v-if="showDropdown" v-click-outside="toggleDropdown">
-            <div class="block mb-2">
-                <p class="mb-2">What would you like to generate?</p>
+    <Popover class="chatgpt-popover" align="start" :inset="true">
+        <template #trigger>
+            <Button
+                class="px-2!"
+                variant="ghost"
+                size="sm"
+                :aria-label="button.text"
+                v-tooltip="button.text"
+            >
+                <div class="flex items-center" v-html="button.html" />
+            </Button>
+        </template>
 
-                <label>
+        <div class="p-3 min-w-[300px]">
+            <p class="mb-2 text-sm">What would you like to generate?</p>
+
+            <div class="mb-3 flex gap-4">
+                <label class="flex items-center gap-2 text-sm">
+                    <input v-model="type" type="radio" value="full">
                     Full article
-                    <input v-model="type" type="radio" value="full" class="border border-gray-500 rounded-sm p-2">
                 </label>
-
-                <label>
+                <label class="flex items-center gap-2 text-sm">
+                    <input v-model="type" type="radio" value="paragraph">
                     Paragraph
-                    <input v-model="type" type="radio" value="paragraph" class="border border-gray-500 rounded-sm p-2">
                 </label>
             </div>
-            <label class="block mb-2">
-                <template v-if="type == 'full'">
-                    Enter an article title:
-                </template>
-                <template v-else>
-                    Enter a prompt for the paragraph:
-                </template>
-                <input v-model="promptText" type="text" class="block w-full border border-gray-500 rounded-sm p-2">
+
+            <label class="mb-3 block text-sm">
+                <span v-if="type === 'full'">Enter an article title:</span>
+                <span v-else>Enter a prompt for the paragraph:</span>
+                <Input v-model="promptText" class="mt-1" />
             </label>
 
-            <button @click="send" class="btn-primary">Generate</button>
+            <Button @click="send">Generate</Button>
         </div>
-    </div>
+    </Popover>
 </template>
 
 <script>
-import vClickOutside from 'v-click-outside'
-import axios from "axios";
+import { Button, Input, Popover } from '@statamic/cms/ui';
+import axios from 'axios';
 
 export default {
-    name: "ChatGPT",
-    directives: {
-        clickOutside: vClickOutside.directive
+    components: {
+        Button,
+        Input,
+        Popover,
     },
-    mixins: [BardToolbarButton],
+    props: {
+        button: Object,
+        active: Boolean,
+        variant: String,
+        config: Object,
+        bard: Object,
+        editor: Object,
+    },
     data() {
         return {
-            showDropdown: false,
             promptText: '',
             type: 'full',
         };
     },
     methods: {
-        toggleDropdown() {
-            this.showDropdown = !this.showDropdown;
-        },
         async send() {
+            this.editor.setEditable(false);
 
-            // Close dropdown
-            this.toggleDropdown();
-
-            // Don't touch the editor til we are waiting for the api response.
-            this.editor.setEditable(false)
-
-            // Prepare data to the api request
             const data = {
-                'type': this.type,
-                'promptText': this.promptText,
-            }
+                type: this.type,
+                promptText: this.promptText,
+            };
 
-            const that = this;
+            try {
+                const response = await axios.post('/!/statamic-chatgpt', data);
 
-            await axios.post('/!/statamic-chatgpt', data).then(function (response) {
-                if (response?.data) {
-                    if (response?.data?.text) {
-                        that.editor.commands.insertContent(response.data.text);
-                    }
-
-                    if (response?.data?.text) {
-                        Statamic.$toast.success(__('Your content has been generated.'));
-                    } else {
-                        Statamic.$toast.error(response.data.error || __('Something went wrong.'), { duration: 10000 });
-                    }
+                if (response?.data?.text) {
+                    this.editor.commands.insertContent(response.data.text);
+                    Statamic.$toast.success(__('Your content has been generated.'));
+                } else {
+                    Statamic.$toast.error(response?.data?.error || __('Something went wrong.'), { duration: 10000 });
                 }
-            }).catch(function (error) {
-                Statamic.$toast.error(error?.response?.data.error || error.message || __('Something went wrong.'), { duration: 10000 });
-            }).finally(function () {
-                that.editor.commands.focus();
-                that.editor.setEditable(true);
-            });
-        }
-    }
+            } catch (error) {
+                Statamic.$toast.error(error?.response?.data?.error || error.message || __('Something went wrong.'), { duration: 10000 });
+            } finally {
+                this.editor.commands.focus();
+                this.editor.setEditable(true);
+            }
+        },
+    },
 };
 </script>
 
 <style>
-.addon-container {
-    @apply inline-block relative;
-}
+@reference "../../css/addon.css";
 
-.dropdown-container {
-    @apply absolute bg-white border border-gray-300 rounded-sm z-10 divide-y divide-gray-100 shadow-lg p-3 min-w-[300px];
-}
-
-.button {
-    @apply text-left px-3 py-2 w-full hover:bg-gray-100 flex items-center whitespace-nowrap;
-}
-
-.button.active {
-    @apply bg-gray-200;
+.chatgpt-popover svg {
+    width: 1rem;
+    height: 1rem;
 }
 
 .ProseMirror[contenteditable="false"]::after {
