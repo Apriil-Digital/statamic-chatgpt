@@ -1,4 +1,8 @@
 node_modules
 vendor
-resources/dist
 mix-manifest.json
+
+# Ship the compiled Vite CP assets so consuming sites get them via composer.
+# Everything else under resources/dist (e.g. the dev "hot" file) stays ignored.
+resources/dist/*
+!resources/dist/build/
